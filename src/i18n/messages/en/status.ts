@@ -1,0 +1,18 @@
+export const status = {
+  "status.all": "All",
+  "status.0": "New",
+  "status.1": "Pending Processing",
+  "status.2": "In Delivery",
+  "status.3": "Delivered Successfully",
+  "status.4": "In Return",
+  "status.5": "Returned",
+  "status.6": "Cancelled",
+  "status.7": "Picking Up",
+  "status.8": "Awaiting Re-pickup",
+  "status.9": "Picked Up",
+  "status.10": "Awaiting Re-delivery",
+  "status.11": "Awaiting Shipment",
+  "status.12": "Awaiting Return Shipment",
+  "status.13": "Awaiting Return Confirmation",
+  status: "Status",
+} as const;

@@ -1,0 +1,22 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "entry": ["src/features/warranty-portal/pages/*.tsx", "src/features/ess/MobileApp.tsx"],
+  "project": ["src/**/*.{ts,tsx}"],
+  "ignore": ["src/components/ui/**"],
+  "ignoreDependencies": ["tailwindcss", "tw-animate-css"],
+  "vite": {
+    "config": ["vite.config.ts"]
+  },
+  "vitest": {
+    "config": ["vitest.config.ts"]
+  },
+  "eslint": {
+    "config": ["eslint.config.js"]
+  },
+  "rules": {
+    "types": "off",
+    "enumMembers": "off",
+    "duplicates": "off"
+  },
+  "ignoreExportsUsedInFile": true
+}

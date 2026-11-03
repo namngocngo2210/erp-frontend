@@ -1,0 +1,31 @@
+export const dashboard = {
+  "dashboard.summaryHint": "Tổng quan về hoạt động hệ thống",
+  "dashboard.landingDeliveredHint": "Số đơn giao thành công (nguồn Landing) theo từng nhân viên.",
+  "dashboard.landingDeliveredByStaff": "Đơn giao thành công theo nhân viên (Landing)",
+  "dashboard.staffColumn": "Nhân viên",
+  "dashboard.usernameColumn": "Tên đăng nhập",
+  "dashboard.deliveredColumn": "Đơn giao thành công",
+  "dashboard.totalRow": "Tổng",
+  "dashboard.unknownStaff": "Không xác định",
+  "dashboard.empty": "Không có dữ liệu để hiển thị",
+  "dashboard.closeRateTitle": "Tỉ lệ chốt đơn theo sale",
+  "dashboard.closeRateHint":
+    "Chốt thành công = closed, closed_express, created_order. Không liên lạc được gồm unreachable và không nghe máy lần 1 → lần 6.",
+  "dashboard.totalDataColumn": "Tổng data",
+  "dashboard.closedColumn": "Đã chốt",
+  "dashboard.spamColumn": "Spam",
+  "dashboard.unreachableColumn": "Không LLĐ",
+  "dashboard.rateExclSpamColumn": "% chốt (−spam)",
+  "dashboard.rateExclSpamUnreachableColumn": "% chốt (−spam −không LLĐ)",
+  "dashboard.saleFbRevenueTitle": "Doanh thu đơn chốt – kênh Sale FB",
+  "dashboard.saleFbRevenueHint":
+    "Chỉ tính đơn có sales_status_code ∈ {closed, closed_express, created_order}. Doanh thu = total_after_discount.",
+  "dashboard.closedOrdersColumn": "Số đơn chốt",
+  "dashboard.revenueColumn": "Doanh thu (VND)",
+  "dashboard.closedRevenueTitle": "Nhóm 9 — Data chia & doanh thu chốt theo Sale",
+  "dashboard.closedRevenueHint":
+    'Doanh thu chốt = tổng tiền các đơn đã có đánh giá ở trạng thái Đã chốt / Hoả tốc / Đã lên đơn — KHÔNG gồm "Đã chốt, hẹn ngày". Tính cả đơn sau đó bị hoàn; không tính đơn đã huỷ. Vì vậy số đơn ở đây nhỏ hơn cột Tổng chốt của Nhóm 1. Nhóm 4 dùng tiêu chí khác — chỉ đơn đã giao thành công, không xét đánh giá.',
+  "dashboard.assignedDataColumn": "Data được chia",
+  "dashboard.closeRateColumn": "% chốt",
+  "dashboard.closedRevenueColumn": "Doanh thu chốt",
+} as const;

@@ -1,0 +1,20 @@
+export const systemSettings = {
+  "systemSettings.title": "System settings",
+  "systemSettings.description":
+    "Partner credentials and runtime parameters stored in DB; changes apply within seconds, no deploy. Secrets show only their last 4 characters.",
+  "systemSettings.save": "Save",
+  "systemSettings.saved": "Settings saved",
+  "systemSettings.saveFailed": "Save failed",
+  "systemSettings.secret.set": "Set ({hint})",
+  "systemSettings.secret.unset": "Not set",
+  "systemSettings.secret.placeholder": "Enter a new value to replace",
+  "systemSettings.secret.clear": "Clear",
+  "systemSettings.secret.willClear": "Will be cleared on Save",
+  "systemSettings.secret.undo": "Undo",
+  "systemSettings.default": "Default: {value}",
+  "systemSettings.lastEdited": "Last edited: {user}, {time}",
+  "systemSettings.history": "History",
+  "systemSettings.history.empty": "No changes yet",
+  "systemSettings.unsavedPrompt": "This tab has unsaved changes. Discard?",
+  "systemSettings.loadFailed": "Could not load settings",
+} as const;

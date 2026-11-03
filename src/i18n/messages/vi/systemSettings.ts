@@ -1,0 +1,20 @@
+export const systemSettings = {
+  "systemSettings.title": "Cấu hình hệ thống",
+  "systemSettings.description":
+    "Credential đối tác và tham số vận hành đọc từ DB, có hiệu lực trong vài giây, không cần deploy. Secret chỉ hiện 4 ký tự cuối.",
+  "systemSettings.save": "Lưu",
+  "systemSettings.saved": "Đã lưu cấu hình",
+  "systemSettings.saveFailed": "Lưu thất bại",
+  "systemSettings.secret.set": "Đã đặt ({hint})",
+  "systemSettings.secret.unset": "Chưa đặt",
+  "systemSettings.secret.placeholder": "Nhập giá trị mới để thay",
+  "systemSettings.secret.clear": "Xoá",
+  "systemSettings.secret.willClear": "Sẽ xoá khi Lưu",
+  "systemSettings.secret.undo": "Hoàn tác",
+  "systemSettings.default": "Mặc định: {value}",
+  "systemSettings.lastEdited": "Sửa lần cuối: {user}, {time}",
+  "systemSettings.history": "Lịch sử",
+  "systemSettings.history.empty": "Chưa có thay đổi",
+  "systemSettings.unsavedPrompt": "Tab này có thay đổi chưa lưu. Bỏ qua?",
+  "systemSettings.loadFailed": "Không tải được cấu hình",
+} as const;

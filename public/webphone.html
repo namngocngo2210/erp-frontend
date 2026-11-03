@@ -1,0 +1,289 @@
+<!doctype html>
+<html lang="vi">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Webphone</title>
+  <!--
+    Iframe HEADLESS (Bước 3.2 tài liệu HuongDanTichHopWebSDKv2.3): chỉ còn là
+    engine kết nối/âm thanh của Zenify SDK, KHÔNG render UI — UI gọi do app
+    React dựng (WebphonePanel). Chạy trong iframe same-origin ẩn, giữ mounted
+    xuyên điều hướng SPA để không rớt cuộc gọi.
+    Giao tiếp với app qua postMessage — xem src/features/callcenter/webphone-bridge.ts.
+    jQuery giữ lại vì webphone.js phụ thuộc; toastr/bootstrap/webphone.css đã bỏ
+    (iframe vô hình, thông báo lỗi do app toast bằng sonner).
+  -->
+  <script>
+    // webphone.js (UI gốc của vendor) lúc document ready thấy "Access-Token" cũ trong
+    // localStorage là tự ZenifyApp.init(tokenCũ) → 0,5s sau connect bằng token cũ
+    // (có thể hết hạn) và app init sau đó bị "socket already connected, skip".
+    // Xoá trước khi vendor chạy: token đúng luôn do app đưa qua webphone:init.
+    try { localStorage.removeItem("Access-Token"); } catch (e) { /* ignore */ }
+  </script>
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+  <script src="https://cdn.zenify.biz/socket.io-2.5.0.js"></script>
+  <script src="https://cdn.zenify.biz/jssip-3.10.0.min.js"></script>
+  <script src="https://cdn.zenify.biz/webphone.js"></script>
+  <script src="https://cdn.zenify.biz/sdk.min.js"></script>
+  <style>
+    body { margin: 0; background: transparent; }
+    /* Phòng khi webphone.js vẫn render gì đó vào #phoneui — không được hiện. */
+    #phoneui { display: none; }
+  </style>
+</head>
+
+<body>
+  <div id="phoneui"></div>
+
+  <script type="text/javascript">
+    (function () {
+      var ORIGIN = window.location.origin; // iframe same-origin với app
+      var SDK_LOAD_ERROR = "Không tải được Zenify SDK (kiểm tra kết nối tới cdn.zenify.biz).";
+      var initialized = false;
+
+      // 15 function stateless cho message webphone:command — ngoài danh sách bỏ qua.
+      var COMMANDS = {
+        answerCall: 1, terminate: 1, hold: 1, unhold: 1, mute: 1, unmute: 1,
+        register: 1, unregister: 1,
+        transferToAgent: 1, transferToAcd: 1, inviteAgent: 1, invitePhone: 1, transferPhone: 1,
+        spy: 1, join: 1
+      };
+
+      function send(msg) {
+        try { window.parent.postMessage(msg, ORIGIN); } catch (e) { /* ignore */ }
+      }
+
+      // Chuyển tiếp console.* của SDK ("session ended", "Agent Answered...", "call
+      // failed"...) lên app để ghi vào nhật ký chẩn đoán (nút Sao chép nhật ký).
+      // Không chạy khi không nằm trong iframe (test jsdom chạy script này trực tiếp).
+      (function forwardConsole() {
+        if (window.parent === window || !window.console) return;
+        var levels = ["log", "info", "warn", "error"];
+        for (var i = 0; i < levels.length; i++) {
+          (function (level) {
+            var original = console[level];
+            if (typeof original !== "function") return;
+            console[level] = function () {
+              try {
+                var parts = [];
+                for (var j = 0; j < arguments.length; j++) {
+                  var a = arguments[j];
+                  if (typeof a === "string") parts.push(a);
+                  else { try { parts.push(JSON.stringify(a)); } catch (e) { parts.push(String(a)); } }
+                }
+                send({ type: "webphone:log", level: level, text: parts.join(" ").slice(0, 600) });
+              } catch (e) { /* ignore */ }
+              return original.apply(console, arguments);
+            };
+          })(levels[i]);
+        }
+      })();
+
+      function sendEvent(kind, objectId, data) {
+        send({ type: "webphone:event", kind: kind, objectId: objectId, data: data || {} });
+      }
+
+      function eventKind(msg) {
+        if (!window.ZenifyConfig || !msg) return undefined;
+        switch (msg.objectId) {
+          case ZenifyConfig.RING_AGENT_RESPOND_ID: return "ring";
+          case ZenifyConfig.AGENT_ANSWER_RESPOND_ID: return "answer";
+          case ZenifyConfig.AGENT_END_CALL_RESPOND_ID:
+          case ZenifyConfig.USER_END_CALL_RESPOND_ID:
+          case ZenifyConfig.END_CALL_RESPOND_ID: return "end";
+          case ZenifyConfig.OUTCALL_ERROR_RESPONSE_ID: return "outcall-error";
+          case ZenifyConfig.OUT_CALL_RESPONSE_ID: return "outcall-response";
+          case ZenifyConfig.USER_PHONE_SELECT: return "phone-type";
+          case ZenifyConfig.VOICE_ACTIVATED: return "voice-activated";
+          default: return undefined;
+        }
+      }
+
+      function agentStatusNow() {
+        var a = window.ZenifyAgent;
+        return a && a.userstatus ? String(a.userstatus) : "";
+      }
+
+      function onAppEvent(msg) {
+        if (!msg || !window.ZenifyConfig) return;
+
+        // 2 case cần lọc theo agent hiện tại trước khi forward.
+        if (msg.objectId === ZenifyConfig.NEW_NOTIFICATION_ID) {
+          var d = msg.data || {};
+          if (d.type === "phone_failed" && d.title) {
+            sendEvent("notification", msg.objectId, { type: "phone_failed", title: String(d.title) });
+          }
+          if (d.type === "agent_reject" && window.ZenifyAgent && ZenifyAgent.agentId === d.agentId) {
+            sendEvent("notification", msg.objectId, { type: "agent_reject" });
+          }
+          return;
+        }
+        if (msg.objectId === ZenifyConfig.LOGIN_RESPOND_ID) {
+          // Trạng thái agent lúc đăng nhập (SDK: NOACD → tự đổi AVAILABLE). Cuộc gọi
+          // đến chỉ đổ vào agent AVAILABLE nên app cần biết để hiện/đổi trạng thái.
+          var login = msg.data || {};
+          if (login.status === "OK") {
+            // Ưu tiên ZenifyAgent.userstatus: SDK đã tính xong (NOACD → AVAILABLE)
+            // TRƯỚC khi notify; payload LOGIN_RESPOND không chắc có userStatus.
+            var st = agentStatusNow() ||
+              (login.userStatus === "NOACD" ? "AVAILABLE" : String(login.userStatus || ""));
+            // Kèm cấu hình agent phía SDK để chẩn đoán: auto_answer=0 thì leg SIP
+            // gọi ra không tự nhấc → không nghe được chuông chờ; phoneType≠0 (WEB)
+            // thì âm thanh không đi qua trình duyệt.
+            var agent = window.ZenifyAgent || {};
+            sendEvent("logged-in", msg.objectId, {
+              status: st,
+              agentId: agent.agentId != null ? String(agent.agentId) : "",
+              autoAnswer: agent.auto_answer != null ? Number(agent.auto_answer) : null,
+              phoneType: agent.phoneType != null ? Number(agent.phoneType) : null
+            });
+          }
+          return;
+        }
+        if (msg.objectId === ZenifyConfig.VOICE_ACTIVATED) {
+          // Server báo tab này có đang giữ quyền nghe gọi (SIP register) hay không.
+          // Kèm trạng thái agent hiện tại — cơ hội thứ 2 nếu lúc login chưa có.
+          sendEvent("voice-activated", msg.objectId, {
+            isVoiceActivated: Boolean((msg.data || {}).isVoiceActivated),
+            agentStatus: agentStatusNow()
+          });
+          return;
+        }
+        if (msg.objectId === ZenifyConfig.CHANGE_AGENT_STATUS_RESPOND_ID) {
+          var data = msg.data || {};
+          var mine = window.ZenifyAgent && ZenifyAgent.agentId === data.agentId;
+          if (Number(data.errorcode) === 0 && mine) {
+            if (data.status === "LOGOUT") {
+              // Bị ép đăng xuất từ hệ thống Zenify.
+              try { ZenifyApp.logout(); } catch (e) { /* ignore */ }
+              initialized = false;
+              send({ type: "webphone:logged-out" });
+            } else {
+              sendEvent("agent-status", msg.objectId, { status: data.status });
+            }
+          }
+          return;
+        }
+
+        var kind = eventKind(msg);
+        if (kind) sendEvent(kind, msg.objectId, msg.data || {});
+      }
+
+      // Event tầng SIP (JsSIP session) — ZenifyPhone.sendEvent(<string>). Khách cúp
+      // máy tới đây dưới dạng "ended"/"failed" (BYE từ đầu xa); socket có thể KHÔNG
+      // gửi USER_END_CALL tương ứng — bộ UI gốc của vendor cũng reset màn hình từ
+      // chính event này. Forward thành "end" không callId để app về idle chắc chắn.
+      // Cause JsSIP của session gần nhất ("Busy", "Rejected", "Canceled", "No Answer"…).
+      // SDK chỉ phát chuỗi "failed"/"ended" không kèm cause nên tự gắn listener lên
+      // ZenifyPhone.session ngay khi SDK báo "newRTCSession"; listener của SDK đăng
+      // ký trước nên chạy trước → dùng ở lần "failed"/"ended" tiếp theo là kịp.
+      var lastSipCause = "";
+      function onPhoneEvent(name) {
+        if (name === "newRTCSession") {
+          lastSipCause = "";
+          var s = window.ZenifyPhone && ZenifyPhone.session;
+          if (s && typeof s.on === "function") {
+            var remember = function (e) { lastSipCause = e && e.cause ? String(e.cause) : ""; };
+            try { s.on("failed", remember); s.on("ended", remember); } catch (e) { /* ignore */ }
+          }
+          return;
+        }
+        if (name === "ended" || name === "failed") {
+          sendEvent("end", undefined, { source: "sip", cause: String(name), reason: lastSipCause });
+          lastSipCause = "";
+        }
+      }
+
+      window.addEventListener("message", function (event) {
+        if (event.origin !== ORIGIN) return;
+        var msg = event.data;
+        if (!msg || typeof msg !== "object") return;
+
+        if (!window.ZenifyApp) {
+          send({ type: "webphone:sdk-error", message: SDK_LOAD_ERROR });
+          return;
+        }
+
+        switch (msg.type) {
+          case "webphone:init": {
+            if (initialized) break;
+            try {
+              ZenifyApp.subscribe(onAppEvent);
+              if (window.ZenifyPhone && typeof ZenifyPhone.subscribe === "function") {
+                ZenifyPhone.subscribe(onPhoneEvent);
+              }
+              ZenifyApp.init(String(msg.token || ""));
+              initialized = true;
+              send({ type: "webphone:initialized" });
+            } catch (e) {
+              send({ type: "webphone:sdk-error", message: "Init webphone lỗi: " + (e && e.message ? e.message : e) });
+            }
+            break;
+          }
+          case "webphone:dial": {
+            if (!initialized) {
+              sendEvent("notification", undefined, { type: "not_ready" });
+              break;
+            }
+            try { ZenifyApp.dialCall(String(msg.phone || "")); } catch (e) {
+              send({ type: "webphone:sdk-error", message: "Không gọi được: " + (e && e.message ? e.message : e) });
+            }
+            break;
+          }
+          case "webphone:command": {
+            if (!initialized) {
+              sendEvent("notification", undefined, { type: "not_ready" });
+              break;
+            }
+            if (!COMMANDS[msg.method] || typeof ZenifyApp[msg.method] !== "function") break;
+            try { ZenifyApp[msg.method].apply(ZenifyApp, msg.args || []); } catch (e) { /* ignore */ }
+            break;
+          }
+          case "webphone:agent-status": {
+            if (!initialized) break;
+            try { ZenifyApp.changeAgentStatus({ status: String(msg.status || "") }); } catch (e) { /* ignore */ }
+            break;
+          }
+          case "webphone:phone-type": {
+            if (!initialized) break;
+            try { ZenifyApp.voiceSetting({ phoneType: Number(msg.phoneType) }); } catch (e) { /* ignore */ }
+            break;
+          }
+          case "webphone:ensure-hangup": {
+            // App coi cuộc gọi đã xong (tắt máy / lỗi gọi ra / event end) nhưng leg
+            // SIP giữa trình duyệt và PBX có thể vẫn mở: gọi ra thất bại (480/408...)
+            // thì socket báo OUTCALL_ERROR còn PBX tiếp tục phát tút bận vào leg này
+            // cho tới khi agent BYE — user nghe "tút liên hồi dù không có cuộc gọi".
+            if (!window.ZenifyPhone || !ZenifyPhone.session) break;
+            try { ZenifyApp.terminate(); } catch (e) { /* ignore */ }
+            try { ZenifyPhone.terminate_call(); } catch (e) { /* ignore */ }
+            break;
+          }
+          case "webphone:activate": {
+            // Chuyển tab này thành tab chính để nghe cuộc gọi (nhiều tab ERP).
+            try { ZenifyApp.activateVoice(); } catch (e) { /* ignore */ }
+            break;
+          }
+          case "webphone:logout": {
+            try { ZenifyApp.logout(); } catch (e) { /* ignore */ }
+            initialized = false;
+            break;
+          }
+          default:
+            break;
+        }
+      });
+
+      window.addEventListener("load", function () {
+        if (window.ZenifyApp) {
+          send({ type: "webphone:ready" });
+        } else {
+          send({ type: "webphone:sdk-error", message: SDK_LOAD_ERROR });
+        }
+      });
+    })();
+  </script>
+</body>
+
+</html>

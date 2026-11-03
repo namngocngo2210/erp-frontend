@@ -1,0 +1,9 @@
+#!/bin/sh
+# Hàng rào kiến trúc backend chạy trước khi push.
+#
+# Vì sao hook backend lại nằm trong frontend/: `core.hooksPath` của repo trỏ vào
+# `frontend/.husky/_`, nên đây là thư mục DUY NHẤT git thực sự đọc hook. Thư mục
+# `.githooks/` ở gốc repo không bao giờ được gọi.
+#
+# Bỏ qua khi cần: git push --no-verify
+sh scripts/check-backend-arch.sh

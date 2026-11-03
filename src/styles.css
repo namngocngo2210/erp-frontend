@@ -1,0 +1,341 @@
+@import "tailwindcss";
+/*
+ * tw-animate-css cung cấp bộ tiện ích chuyển động cho Radix/shadcn:
+ * `animate-in|out`, `fade-in-*`, `zoom-in-*`, `slide-in-from-*` và các biến thể
+ * `data-[state=open|closed]:*`. Thiếu dòng import này thì TẤT CẢ hiệu ứng
+ * enter/exit của Dialog, Sheet, Popover, Select, Dropdown... trở nên vô hiệu
+ * (component pop tức thời). Phải đặt SAU `@import "tailwindcss"`.
+ */
+@import "tw-animate-css";
+
+/* Light theme duy nhất theo quy định dự án — không có dark mode (đã gỡ `.dark`/`dark:`, UI audit S4). */
+
+/*
+ * Map token màu sang biến CSS THẲNG (không bọc color-mix). Tailwind v4 tự áp alpha
+ * native cho modifier opacity (vd `bg-primary/50`, `border-border/60`) — workaround
+ * `<alpha-value>`/color-mix của config v3 không còn cần và sẽ PHÁ 452 chỗ dùng
+ * opacity nếu giữ (codemod hardcode alpha=1). Giữ đúng tên biến nguồn ở `:root`.
+ */
+@theme {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-border: var(--border);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-action-danger: var(--action-danger);
+  --color-action-success: var(--action-success);
+  --color-action-warning: var(--action-warning);
+  --color-action-info: var(--action-info);
+
+  --radius-lg: 0.75rem;
+  --radius-md: 0.5rem;
+  --radius-sm: 0.375rem;
+
+  /* Inter cho UI/body (tabular-nums tốt cho bảng số liệu); Be Vietnam Pro cho
+     heading/brand (thiết kế riêng cho dấu tiếng Việt). Font import ở main.tsx. */
+  --font-sans:
+    "Inter Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-display: "Be Vietnam Pro", var(--font-sans);
+
+  /* Sàn cỡ chữ nhỏ: root co 15px ở <1536 làm 0.75rem còn 11,25px — giữ `text-xs`
+     tối thiểu 12px ở mọi tier. `text-2xs` (11px) CHỈ dành cho badge đếm số tròn nhỏ;
+     không dùng cho chữ đọc. ESLint chặn `text-[9|10|11px]`. */
+  --text-xs: max(12px, 0.75rem);
+  --text-2xs: 11px;
+  --text-2xs--line-height: calc(16 / 11);
+}
+
+/*
+  The default border color has changed to `currentcolor` in Tailwind CSS v4,
+  so we've added these compatibility styles to make sure everything still
+  looks the same as it did with Tailwind CSS v3.
+
+  If we ever want to remove these styles, we need to add an explicit border
+  color utility to any element that depends on these defaults.
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+}
+
+@layer base {
+  :root {
+    /* Trắng phớt xanh (không phải trắng tinh) để card/popover trắng nổi lên
+       thành lớp — giảm cảm giác "phẳng" của nền oklch(1 0 0) cũ. */
+    --background: oklch(0.985 0.008 230);
+    --foreground: oklch(0.22 0.03 245);
+    --card: oklch(0.998 0.003 230);
+    --card-foreground: oklch(0.22 0.03 245);
+    --primary: oklch(0.58 0.18 246);
+    --primary-foreground: oklch(0.98 0.01 240);
+    --muted: oklch(0.95 0.02 235);
+    --muted-foreground: oklch(0.47 0.06 245);
+    --border: oklch(0.89 0.03 240);
+    --popover: oklch(1 0 0);
+    --popover-foreground: oklch(0.22 0.03 245);
+    --secondary: oklch(0.94 0.04 230);
+    --secondary-foreground: oklch(0.3 0.05 245);
+    --accent: oklch(0.91 0.08 225);
+    --accent-foreground: oklch(0.28 0.07 245);
+    --destructive: oklch(0.577 0.245 27.325);
+    --destructive-foreground: oklch(0.98 0.01 25);
+    /* Token semantic đúng hue (giá trị cũ copy nhầm toàn hue xanh dương):
+       success = xanh lá, warning = hổ phách, danger = đỏ, info = xanh trời.
+       Độ sáng chọn để chữ đạt ≥ 4.5:1 cả trên nền card lẫn nền tint /10
+       (StatusBadge) — warning vì vậy ngả hổ phách đậm (~amber-700). */
+    --action-danger: oklch(0.55 0.22 27);
+    --action-success: oklch(0.5 0.14 152);
+    --action-warning: oklch(0.53 0.14 55);
+    --action-info: oklch(0.5 0.12 230);
+    --input: oklch(0.93 0.02 236);
+    --ring: oklch(0.67 0.15 245);
+    --chart-1: oklch(0.58 0.17 246);
+    --chart-2: oklch(0.6 0.15 195);
+    --chart-3: oklch(0.54 0.17 145);
+    --chart-4: oklch(0.62 0.16 55);
+    --chart-5: oklch(0.58 0.2 25);
+    --chart-6: oklch(0.55 0.17 310);
+    --chart-7: oklch(0.65 0.12 220);
+    --chart-8: oklch(0.52 0.07 245);
+    --sidebar-background: oklch(0.98 0.01 240);
+    --sidebar-foreground: oklch(0.22 0.03 245);
+    --sidebar-primary: oklch(0.58 0.18 246);
+    --sidebar-primary-foreground: oklch(0.98 0.01 240);
+    --sidebar-accent: oklch(0.94 0.04 230);
+    --sidebar-accent-foreground: oklch(0.3 0.05 245);
+    --sidebar-border: oklch(0.89 0.03 240);
+    --sidebar-ring: oklch(0.67 0.15 245);
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings:
+      "rlig" 1,
+      "calt" 1;
+  }
+
+  /* Vòng focus bàn phím nhất quán toàn app (chỉ hiện khi điều hướng bằng phím,
+     không làm phiền thao tác chuột) — dùng chung token --ring của design system. */
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+}
+
+/* Font display cho heading/brand (class đã dùng ở Sidebar/login/AppLauncher
+   từ trước nhưng chưa từng được định nghĩa — trước đây rơi về font body). */
+@layer components {
+  .display-face {
+    font-family: var(--font-display);
+    letter-spacing: -0.015em;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   Cột định danh dính trái khi bảng cuộn ngang (mã/tên, sau checkbox).
+   Nền PHẢI đặc: nền zebra/hover của <tr> là màu trong suốt và vẽ ở vị trí gốc
+   của hàng, không đi theo ô sticky → ô sticky tự sơn nền card + phủ lại đúng
+   sắc của hàng qua biến `--sticky-tint` (đặt ở rule zebra/hover bên dưới; hàng
+   có màu riêng thì gán `[--sticky-tint:…]` trên <tr>). Header dùng đúng màu
+   thead mặc định. Khai báo `@utility` để dùng được variant (`md:sticky-col`);
+   utility left-N / z-N (1 thuộc tính) xếp sau nên thắng `left: 0` mặc định.
+   `.sticky-col-edge` cho cột sticky CUỐI: vạch + bóng mờ tách với phần cuộn.
+═══════════════════════════════════════════════════════ */
+@utility sticky-col {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background-color: var(--card);
+  background-image: linear-gradient(
+    var(--sticky-tint, transparent),
+    var(--sticky-tint, transparent)
+  );
+
+  thead & {
+    z-index: 2;
+    background-color: color-mix(in oklch, var(--primary) 14%, var(--card));
+  }
+}
+
+@utility sticky-col-edge {
+  box-shadow:
+    1px 0 0 var(--border),
+    6px 0 6px -6px color-mix(in oklch, var(--foreground) 25%, transparent);
+}
+
+/* ═══════════════════════════════════════════════════════
+   Tôn trọng "giảm chuyển động" của hệ điều hành (a11y).
+   Người dùng bật Reduce Motion → tắt gần như toàn bộ animation/transition
+   thay vì để chúng chạy, tránh gây chóng mặt. Giữ lại một chút để trạng thái
+   vẫn thay đổi tức thì mà không nhấp nháy.
+═══════════════════════════════════════════════════════ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   Zebra + kiểu MẶC ĐỊNH cho mọi bảng gắn data-slot="table" (Table primitive +
+   bảng thô chỉ cần thêm 1 thuộc tính). Toàn bộ dùng :where() → ĐẶC THÙ = 0 và
+   PHẢI nằm trong @layer base: Tailwind v4 đặt utilities trong @layer utilities,
+   mà CSS không-layer luôn THẮNG CSS trong layer bất kể specificity — để ngoài
+   layer thì `text-align: left` của thead th đè chết mọi text-center/text-right
+   của từng bảng (bug lệch header báo cáo ads). Trong @layer base, mọi class
+   riêng của từng bảng (padding, màu, nền hàng, căn cột...) đều thắng, block này
+   chỉ lấp chỗ trống — đúng chủ đích ban đầu.
+═══════════════════════════════════════════════════════ */
+@layer base {
+  /* Số thẳng cột trong mọi bảng dữ liệu (tiền, số lượng) — Inter hỗ trợ tnum. */
+  :where(table[data-slot="table"]) {
+    font-variant-numeric: tabular-nums;
+  }
+
+  :where(table[data-slot="table"] > tbody > tr:nth-child(even)) {
+    background-color: color-mix(in oklch, var(--muted) 45%, transparent);
+    --sticky-tint: color-mix(in oklch, var(--muted) 45%, transparent);
+  }
+
+  :where(table[data-slot="table"] thead) {
+    background-color: color-mix(in oklch, var(--primary) 14%, var(--card));
+  }
+
+  :where(table[data-slot="table"] thead th) {
+    height: 2.5rem;
+    padding: 0 0.75rem;
+    text-align: left;
+    vertical-align: middle;
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+    color: color-mix(in oklch, var(--foreground) 75%, transparent);
+  }
+
+  :where(table[data-slot="table"] tbody td) {
+    padding: 0.5rem 0.75rem;
+    vertical-align: middle;
+  }
+
+  :where(table[data-slot="table"] tbody tr) {
+    border-bottom: 1px solid color-mix(in oklch, var(--border) 45%, transparent);
+    transition: background-color 0.1s ease;
+  }
+
+  :where(table[data-slot="table"] tbody tr):hover {
+    background-color: color-mix(in oklch, var(--primary) 7%, transparent);
+    --sticky-tint: color-mix(in oklch, var(--primary) 7%, transparent);
+  }
+
+  :where(table[data-slot="table"] tbody tr[data-state="selected"]) {
+    --sticky-tint: color-mix(in oklch, var(--primary) 10%, transparent);
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   Thanh cuộn mảnh, theo design token
+   Thanh cuộn mặc định của Windows dày và xám, làm giao diện trông thô. Làm
+   mảnh lại, bo tròn, màu theo token (mờ khi nghỉ, đậm hơn khi hover). Track
+   trong suốt để không tạo "rãnh" xám. Firefox dùng scrollbar-width/color.
+═══════════════════════════════════════════════════════ */
+@layer base {
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklch, var(--muted-foreground) 35%, transparent) transparent;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    background-color: color-mix(in oklch, var(--muted-foreground) 30%, transparent);
+    border: 2px solid transparent;
+    background-clip: padding-box;
+    border-radius: 9999px;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    background-color: color-mix(in oklch, var(--muted-foreground) 55%, transparent);
+  }
+
+  ::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   Density theo kích thước màn hình
+   Spacing/khoảng cách/chiều cao của Tailwind tính theo rem, nên giảm
+   font-size gốc của <html> sẽ co toàn bộ giao diện theo tỉ lệ — một đòn
+   bẩy density app-wide. Màn lớn (≥1536px) giữ 16px như cũ; laptop ~14"
+   (<1536px) co còn 15px. Chỉ 1 tier: tier 14px (<1280) cũ làm `text-xs`
+   rơi xuống 10,5px và lệch tỉ lệ với các kích thước px (không co).
+   Tham chiếu ngưỡng: src/lib/constants/layout.ts
+═══════════════════════════════════════════════════════ */
+@media (max-width: 1535.98px) {
+  html {
+    font-size: 15px;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════
+   Mobile — chống iOS Safari auto-zoom khi focus input
+   iOS phóng to viewport (và giữ nguyên sau đó → "vỡ" layout) mỗi khi
+   focus vào field có font-size < 16px. Vì <html> bị co xuống 15px ở màn
+   hẹp nên input/select/textarea (text-sm) rơi xuống ~13px và dính bug.
+   Ép cứng 16px cho field trên phone/tablet nhỏ để chặn zoom — chỉ ảnh
+   hưởng cỡ chữ trong field, không đụng density desktop.
+═══════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}

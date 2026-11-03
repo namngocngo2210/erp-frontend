@@ -1,0 +1,18 @@
+export const status = {
+  "status.all": "Tất cả",
+  "status.0": "Mới",
+  "status.1": "Chờ xử lý",
+  "status.2": "Đang giao hàng",
+  "status.3": "Giao thành công",
+  "status.4": "Đang chuyển hoàn",
+  "status.5": "Đã chuyển hoàn",
+  "status.6": "Đã hủy",
+  "status.7": "Đang lấy hàng",
+  "status.8": "Chờ lấy lại",
+  "status.9": "Đã lấy hàng",
+  "status.10": "Chờ giao lại",
+  "status.11": "Chờ chuyển hàng",
+  "status.12": "Chờ chuyển hoàn lại",
+  "status.13": "Chờ xác nhận hoàn",
+  status: "Trạng thái",
+} as const;
